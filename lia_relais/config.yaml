@@ -1,0 +1,27 @@
+# L'add-on « Lia — accès de dehors » (lot 5). L'app l'installe seule, par `supervisor/api`, après
+# avoir posé le jeton de lecture de l'image (`/docker/registries`, ghcr.io).
+# `version` = l'étiquette de l'image : la monter à CHAQUE changement du code (le flux de publication
+# refuse de republier une version déjà publiée).
+name: Lia — accès de dehors
+version: "0.1.0"
+slug: lia_relais
+description: Ouvre une ligne sortante, chiffrée de bout en bout, pour joindre la maison depuis l'app Lia.
+url: https://liahome.app
+arch:
+  - amd64
+  - aarch64
+# Image multi-architecture : le Supervisor demande celle de la box.
+image: ghcr.io/aziz5706/lia-relais-addon
+init: false
+startup: application
+boot: auto
+# Les états de HA (l'entité « Lia — accès de dehors ») : http://supervisor/core/api.
+homeassistant_api: true
+# Le port que HA sert : http://supervisor/core/info (rôle par défaut).
+hassio_api: true
+options:
+  relais: ""
+  jeton: ""
+schema:
+  relais: str?
+  jeton: password?
