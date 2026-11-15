@@ -1,5 +1,5 @@
-# L'add-on « Lia — accès de dehors » (lot 5). L'app l'installe seule, par `supervisor/api`, après
-# avoir posé le jeton de lecture de l'image (`/docker/registries`, ghcr.io).
+# L'add-on « Lia — accès de dehors » (lot 5). L'app l'installe seule, par `supervisor/api`.
+# L'image (ghcr.io) est publique : le Supervisor la tire sans identifiants.
 # `version` = l'étiquette de l'image : la monter à CHAQUE changement du code (le flux de publication
 # refuse de republier une version déjà publiée).
 name: Lia — accès de dehors
