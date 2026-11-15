@@ -2,9 +2,10 @@ name: Image
 
 # The image of the "Lia — accès de dehors" add-on, amd64 and aarch64, built from `image/` and pushed to
 # the image named in `lia_relais/config.yaml` (`image:`), at the tag = its `version`, with this
-# repository's GITHUB_TOKEN. A pull request only builds. A published version is never pushed again.
-# After a push, an anonymous pull must succeed: the Supervisor of every Home Assistant pulls it
-# without credentials.
+# repository's GITHUB_TOKEN. A pull request only builds. A published version is never pushed again:
+# it is skipped, and a push that changes `image/` without raising `version` fails. Then an anonymous
+# pull must succeed: the Supervisor of every Home Assistant pulls it without credentials (run it by
+# hand, workflow_dispatch, to check again).
 
 on:
   push:
@@ -33,6 +34,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 2
 
       - name: Read version and image
         id: version
@@ -51,17 +54,26 @@ jobs:
         run: printf '%s' "$TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Never push a published version again
+        id: published
         if: github.event_name != 'pull_request'
         run: |
           if docker buildx imagetools inspect "$IMAGE:${{ steps.version.outputs.version }}" > /dev/null 2>&1; then
-            echo "Version ${{ steps.version.outputs.version }} is already published: raise version in lia_relais/config.yaml." >&2
-            exit 1
+            echo "already=true" >> "$GITHUB_OUTPUT"
+            if [ "${{ github.event_name }}" = "push" ] && git diff --name-only HEAD~1 HEAD | grep -q '^image/'; then
+              echo "image/ changed but version ${{ steps.version.outputs.version }} is already published: raise version in lia_relais/config.yaml." >&2
+              exit 1
+            fi
+            echo "Version ${{ steps.version.outputs.version }} is already published: nothing to push."
+          else
+            echo "already=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Prepare the multi-architecture builder
+        if: steps.published.outputs.already != 'true'
         run: docker buildx create --name lia --driver docker-container --driver-opt "image=$BUILDKIT" --use
 
       - name: Build amd64 and aarch64 (and push, outside pull requests)
+        if: steps.published.outputs.already != 'true'
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then out=; else out=--push; fi
           docker buildx build \
