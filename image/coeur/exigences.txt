@@ -1,0 +1,6 @@
+# Les bibliothèques du cœur du module (lot 4) — justifiées dans PR-NOTES.md.
+# Toutes deux sont DÉJÀ fournies par Home Assistant (l'intégration n'installe rien) ; l'add-on
+# (lot 5) les épingle dans son image. Versions : celles qu'embarque HA 2026.11.1 pour aiohttp
+# (vu sur la VM, en-tête « aiohttp/3.14.5 ») ; cryptography 44.0.2 pour les tests.
+aiohttp==3.14.5
+cryptography==44.0.2

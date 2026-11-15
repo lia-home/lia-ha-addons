@@ -1,0 +1,92 @@
+name: Image
+
+# The image of the "Lia — accès de dehors" add-on, amd64 and aarch64, built from `image/` and pushed to
+# the image named in `lia_relais/config.yaml` (`image:`), at the tag = its `version`, with this
+# repository's GITHUB_TOKEN. A pull request only builds. A published version is never pushed again.
+# After a push, an anonymous pull must succeed: the Supervisor of every Home Assistant pulls it
+# without credentials.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'image/**'
+      - 'lia_relais/config.yaml'
+      - '.github/workflows/image.yml'
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  BUILDKIT: moby/buildkit:buildx-stable-1@sha256:c5f8862f52499773af85bc07695b2379ef08e8002352b0df2c4864c91d78dabe
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Read version and image
+        id: version
+        run: |
+          v=$(sed -n 's/^version: *"\([0-9][0-9.]*\)" *$/\1/p' lia_relais/config.yaml)
+          image=$(sed -n 's/^image: *\(ghcr\.io\/[a-z0-9-]*\/[a-z0-9-]*\) *$/\1/p' lia_relais/config.yaml)
+          [ -n "$v" ] && [ -n "$image" ] || { echo "version or image unreadable in lia_relais/config.yaml" >&2; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "IMAGE=$image" >> "$GITHUB_ENV"
+          echo "Version $v, image $image"
+
+      - name: Log in to ghcr.io
+        if: github.event_name != 'pull_request'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Never push a published version again
+        if: github.event_name != 'pull_request'
+        run: |
+          if docker buildx imagetools inspect "$IMAGE:${{ steps.version.outputs.version }}" > /dev/null 2>&1; then
+            echo "Version ${{ steps.version.outputs.version }} is already published: raise version in lia_relais/config.yaml." >&2
+            exit 1
+          fi
+
+      - name: Prepare the multi-architecture builder
+        run: docker buildx create --name lia --driver docker-container --driver-opt "image=$BUILDKIT" --use
+
+      - name: Build amd64 and aarch64 (and push, outside pull requests)
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then out=; else out=--push; fi
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --provenance=false --sbom=false \
+            --build-arg VERSION=${{ steps.version.outputs.version }} \
+            --build-arg SOURCE="${{ github.server_url }}/${{ github.repository }}" \
+            -f image/Dockerfile \
+            -t "$IMAGE:${{ steps.version.outputs.version }}" \
+            $out image
+          if [ -n "$out" ]; then docker buildx imagetools inspect "$IMAGE:${{ steps.version.outputs.version }}"; fi
+
+      - name: The image must be public
+        if: github.event_name != 'pull_request'
+        run: |
+          docker logout ghcr.io
+          repo="${IMAGE#ghcr.io/}"
+          token=$(curl -s "https://ghcr.io/token?scope=repository:$repo:pull" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer $token" \
+            -H "Accept: application/vnd.oci.image.index.v1+json" \
+            "https://ghcr.io/v2/$repo/manifests/${{ steps.version.outputs.version }}")
+          echo "Anonymous pull: HTTP $code"
+          case "$code" in
+            200) echo "Public." ;;
+            401|403) echo "THE IMAGE IS PRIVATE: Home Assistant cannot install it. Make the package public (Package settings → Change visibility → Public)." >&2; exit 1 ;;
+            *) echo "Unexpected answer ($code)." >&2; exit 1 ;;
+          esac

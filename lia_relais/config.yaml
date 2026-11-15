@@ -11,7 +11,7 @@ arch:
   - amd64
   - aarch64
 # Image multi-architecture : le Supervisor demande celle de la box.
-image: ghcr.io/aziz5706/lia-relais-addon
+image: ghcr.io/lia-home/lia-relais-addon
 init: false
 startup: application
 boot: auto

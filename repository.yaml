@@ -1,6 +1,6 @@
-# Le dépôt d'add-ons de Lia (lot 5). Ce dossier `fiche/` est le contenu du dépôt
-# Aziz5706/lia-ha-addons : rien d'autre que la fiche, ni code ni secret. Le code est dans l'image
-# publique (ghcr.io/aziz5706/lia-relais-addon), que le Supervisor tire sans identifiants.
+# Le dépôt d'add-ons de Lia (lot 5) : lia-home/lia-ha-addons. La fiche (`lia_relais/`) désigne
+# l'image publique ghcr.io/lia-home/lia-relais-addon, que le Supervisor tire sans identifiants ; son
+# code est à côté (`image/`), d'où le dépôt la construit et la publie. Aucun secret.
 name: Lia
 url: https://liahome.app
 maintainer: Lia Home
